@@ -15,8 +15,8 @@ Use RcppEigen to fit least trimmed squares
 \tabular{ll}{
 Package: \tab sparseLTSEigen\cr
 Type: \tab Package\cr
-Version: \tab 0.1.0\cr
-Date: \tab 2012-04-10\cr
+Version: \tab 0.1.1\cr
+Date: \tab 2012-04-11\cr
 Depends: \tab 
 Rcpp (>= 0.9.10),
 robustHD\cr

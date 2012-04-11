@@ -2,8 +2,8 @@ Package: sparseLTSEigen
 Type: Package
 Title: RcppEigen back end for sparse least trimmed squares
     regression
-Version: 0.1.0
-Date: 2012-04-10
+Version: 0.1.1
+Date: 2012-04-11
 Author: Andreas Alfons
 Maintainer: Andreas Alfons
     <andreas.alfons@econ.kuleuven.be>
