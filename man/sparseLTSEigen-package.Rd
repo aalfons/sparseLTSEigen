@@ -76,8 +76,8 @@ fit <- sparseLTS(x, y, lambda = 0.05, mode = "fraction")
 coef(fit, zeros = FALSE)
 }
 \author{
-Andreas Alfons
+Andreas Alfons [aut, cre]
 
-Maintainer: Andreas Alfons <andreas.alfons@econ.kuleuven.be>
+Maintainer: Andreas Alfons <andreas.alfons@kuleuven.be>
 }
 \keyword{package}
