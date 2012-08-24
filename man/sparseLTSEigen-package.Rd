@@ -3,8 +3,7 @@
 \alias{sparseLTSEigen}
 \docType{package}
 \title{
-RcppEigen back end for sparse least trimmed squares
-regression
+RcppEigen back end for sparse least trimmed squares regression
 }
 \description{
 Use RcppEigen to fit least trimmed squares
@@ -16,14 +15,10 @@ Use RcppEigen to fit least trimmed squares
 Package: \tab sparseLTSEigen\cr
 Type: \tab Package\cr
 Version: \tab 0.1.1\cr
-Date: \tab 2012-04-11\cr
-Depends: \tab 
-Rcpp (>= 0.9.10),
-robustHD\cr
-Imports: \tab 
-RcppEigen (>= 0.2.0)\cr
-Suggests: \tab 
-mvtnorm\cr
+Date: \tab 2012-08-24\cr
+Depends: \tab Rcpp (>= 0.9.10), robustHD\cr
+Imports: \tab RcppEigen (>= 0.2.0)\cr
+Suggests: \tab mvtnorm\cr
 LinkingTo: \tab Rcpp, RcppEigen\cr
 License: \tab GPL (>= 2)\cr
 LazyLoad: \tab yes\cr
@@ -40,13 +35,8 @@ sparseLTSEigen-package
 Package \pkg{sparseLTSEigen} provides an alternative back end for sparse least 
 trimmed squares regression from package \pkg{robustHD}.  The back end built 
 into \pkg{robustHD} uses the C++ library Armadillo, whereas this back end uses 
-the C++ library Eigen.  The latter is faster, but not available on all 
-platforms.  For instance, \pkg{sparseLTSEigen} currently does not work on 
-32-bit \R for Windows.  In addition, there is currently no binary package for 
-OS X available on CRAN due to problems with the PowerPC 
-architecture.  Nevertheless, OS X users with Intel machines can install 
-\pkg{RcppEigen} and \pkg{sparseLTSEigen} from source if the standard \R 
-developer tools are installed.
+the C++ library Eigen.  The latter is faster, but currently does not work on 
+32-bit \R for Windows.
 
 When \pkg{sparseLTSEigen} is loaded, its back end is used automatically for 
 sparse least trimmed squares regression, except on 32-bit \R for Windows.
