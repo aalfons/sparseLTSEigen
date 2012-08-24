@@ -9,7 +9,9 @@
 #define EIGEN_NO_DEBUG
 
 #include <sparseLTSEigen.h>
-#include <omp.h>  // OpenMP
+#ifdef _OPENMP
+#include <omp.h>	// OpenMP
+#endif
 #include "fastLasso.h"
 #include "utils.h"
 
