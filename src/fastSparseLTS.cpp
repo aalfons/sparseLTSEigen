@@ -390,7 +390,8 @@ Subset fastSparseLTS(const MatrixXd& x, const VectorXd& y,
 	for(int k = 0; k < nkeep; k++) {
 		Subset subsetK = subsets[k];
 		if(subsetK.crit < minCrit) {
-			which = k;	// update optimal subset
+			which = k;	            // update optimal subset
+  		minCrit = subsetK.crit;	// update minimum of objective function
 		}
 	}
 
