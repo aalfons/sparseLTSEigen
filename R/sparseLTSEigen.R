@@ -1,10 +1,14 @@
-# ----------------------
+# ------------------------------------
 # Author: Andreas Alfons
-#         KU Leuven
-# ----------------------
+#         Erasmus University Rotterdam
+# ------------------------------------
 
-## register RcppEigen back end when package is loaded
+## function to call RcppEigen back end
+#' @rdname sparseLTSEigen-package
+#' @export
 #' @import Rcpp 
 #' @import RcppEigen
 #' @useDynLib sparseLTSEigen
-.onLoad <- function(libname, pkgname) registerBackend()
+.CallSparseLTSEigen <- function(..., PACKAGE) {
+  .Call(..., PACKAGE="sparseLTSEigen")
+}

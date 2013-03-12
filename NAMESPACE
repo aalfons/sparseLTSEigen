@@ -1,3 +1,4 @@
+export(.CallSparseLTSEigen)
 import(Rcpp)
 import(RcppEigen)
 useDynLib(sparseLTSEigen)

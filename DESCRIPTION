@@ -3,10 +3,10 @@ Type: Package
 Title: RcppEigen back end for sparse least trimmed squares
     regression
 Version: 0.1.2
-Date: 2013-03-11
+Date: 2013-03-12
 Depends:
     Rcpp (>= 0.9.10),
-    robustHD (>= 0.2.0)
+    robustHD (>= 0.3.0)
 Imports:
     RcppEigen (>= 0.2.0)
 Suggests:
@@ -20,6 +20,3 @@ LazyLoad: yes
 Authors@R: person("Andreas", "Alfons",
     email = "alfons@ese.eur.nl",
     role = c("aut", "cre"))
-Collate:
-    'backend.R'
-    'sparseLTSEigen.R'

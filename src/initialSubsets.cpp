@@ -1,6 +1,6 @@
 /*
  * Author: Andreas Alfons
- *         KU Leuven
+ *         Erasmus University Rotterdam
  */
 
 #include "initialSubsets.h"
@@ -8,14 +8,12 @@
 using namespace Rcpp;
 using namespace Eigen;
 
-// function used internally by initialSubsets(), which computes lasso fits for
-// subsets containing a small number of observations (typically only 3) and
-// returns the indices of the respective h observations with the smallest
-// absolute residuals
-MatrixXi initialSubsetsSparse(const MatrixXd& x, const VectorXd& y,
-		const MatrixXi& subsets, const int& h, const double& lambda,
-		const bool& useIntercept, const double& eps,
-		const bool& useGram) {
+// function used internally, which computes lasso fits for subsets containing a 
+// small number of observations (typically only 3) and returns the indices of 
+// the respective h observations with the smallest absolute residuals
+MatrixXi sparseSubsets(const MatrixXd& x, const VectorXd& y,
+  	const double& lambda, const int& h, const MatrixXi& subsets, 
+		const bool& useIntercept, const double& eps, const bool& useGram) {
 	const int nsamp = subsets.cols();
 	MatrixXi indices(h, nsamp);
 	for(int k = 0; k < nsamp; k++) {
@@ -37,25 +35,32 @@ MatrixXi initialSubsetsSparse(const MatrixXd& x, const VectorXd& y,
 	return indices;
 }
 
-// R interface to initialSubsetsSparse()
-SEXP R_initialSubsetsSparse(SEXP R_x, SEXP R_y, SEXP R_subsets, SEXP R_h,
-		SEXP R_lambda, SEXP R_intercept, SEXP R_eps, SEXP R_useGram) {
+// R interface to sparseSubsets()
+SEXP R_sparseSubsets(SEXP R_x, SEXP R_y, SEXP R_lambda, SEXP R_h, 
+    SEXP R_subsets, SEXP R_intercept, SEXP R_eps, SEXP R_useGram) {
 	// data initializations
-	NumericMatrix Rcpp_x(R_x);	// predictor matrix
+	NumericMatrix Rcpp_x(R_x);              // predictor matrix
 	const int n = Rcpp_x.nrow(), p = Rcpp_x.ncol();
-	Map<MatrixXd> x(Rcpp_x.begin(), n, p);	// reuse memory
-	NumericVector Rcpp_y(R_y);	// response
-	Map<VectorXd> y(Rcpp_y.begin(), n);		// reuse memory
-	IntegerMatrix Rcpp_subsets(R_subsets);	// subset to use for computation
-	const int nsamp = Rcpp_subsets.ncol();
-	Map<MatrixXi> subsets(Rcpp_subsets.begin(), Rcpp_subsets.nrow(), nsamp);
-	int h = as<int>(R_h);
-	double lambda = as<double>(R_lambda);
+	Map<MatrixXd> x(Rcpp_x.begin(), n, p);  // reuse memory
+	NumericVector Rcpp_y(R_y);              // response
+	Map<VectorXd> y(Rcpp_y.begin(), n);     // reuse memory
+  double lambda = as<double>(R_lambda);
+  int h = as<int>(R_h);
+	IntegerMatrix Rcpp_subsets(R_subsets);  // subset to use for computation
+  const int s = Rcpp_subsets.nrow(), nsamp = Rcpp_subsets.ncol();
+	MatrixXi subsets(s, nsamp);
+	for(int j = 0; j < nsamp; j++) {
+		for(int i = 0; i < s; i++) {
+			subsets(i,j) = Rcpp_subsets(i,j) - 1;
+		}
+	}
 	bool useIntercept = as<bool>(R_intercept);
 	double eps = as<double>(R_eps);
 	bool useGram = as<bool>(R_useGram);
 	// call native C++ function and return results
-	MatrixXi indices = initialSubsetsSparse(x, y, subsets, h, lambda,
+	MatrixXi indices = sparseSubsets(x, y, lambda, h, subsets,
 			useIntercept, eps, useGram);
-	return wrap(indices);
+	IntegerVector Rcpp_indices = wrap(indices);
+  Rcpp_indices = Rcpp_indices + 1;
+  return Rcpp_indices;
 }

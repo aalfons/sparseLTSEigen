@@ -1,6 +1,6 @@
 /*
  * Author: Andreas Alfons
- *         KU Leuven
+ *         Erasmus University Rotterdam
  */
 
 #include "utils.h"
@@ -75,7 +75,9 @@ SEXP R_findSmallest(SEXP R_x, SEXP R_h) {
 	Map<VectorXd> x(Rcpp_x.begin(), Rcpp_x.size());	// reuse memory
 	int h = as<int>(R_h);
 	VectorXi indices = findSmallest(x, h);	// call native C++ function
-	return wrap(indices);
+  IntegerVector Rcpp_indices = wrap(indices);
+  Rcpp_indices = Rcpp_indices + 1;
+  return Rcpp_indices;
 }
 
 // find indices of h smallest observations
@@ -104,7 +106,9 @@ SEXP R_partialOrder(SEXP R_x, SEXP R_h) {
 	Map<VectorXd> x(Rcpp_x.begin(), Rcpp_x.size());	// reuse memory
 	int h = as<int>(R_h);
 	VectorXi indices = partialOrder(x, h);	// call native C++ function
-	return wrap(indices);
+  IntegerVector Rcpp_indices = wrap(indices);
+  Rcpp_indices = Rcpp_indices + 1;
+  return Rcpp_indices;
 }
 
 //// R interface to partial sort of h smallest observations

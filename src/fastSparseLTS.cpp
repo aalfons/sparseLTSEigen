@@ -1,6 +1,6 @@
 /*
  * Author: Andreas Alfons
- *         KU Leuven
+ *         Erasmus University Rotterdam
  */
 
 #include "fastSparseLTS.h"
@@ -155,7 +155,7 @@ SEXP R_testLasso(SEXP R_x, SEXP R_y, SEXP R_lambda, SEXP R_initial,
 	const int h = Rcpp_initial.size();
 	VectorXi initial(h);
 	for(int i = 0; i < h; i++) {
-		initial(i) = Rcpp_initial[i];	// do not reuse memory
+		initial(i) = Rcpp_initial[i] - 1;	// do not reuse memory
 	}
 	bool useIntercept = as<bool>(R_intercept);
 	double eps = as<double>(R_eps);
@@ -168,8 +168,9 @@ SEXP R_testLasso(SEXP R_x, SEXP R_y, SEXP R_lambda, SEXP R_initial,
 	if(useIntercept) {
 		Rcpp_coefficients.push_front(subset.intercept);	// prepend intercept
 	}
+  IntegerVector Rcpp_indices = wrap(subset.indices);
 	return List::create(
-			Named("indices") = subset.indices,
+			Named("indices") = Rcpp_indices + 1,
 			Named("coefficients") = Rcpp_coefficients,
 			Named("residuals") = subset.residuals,
 			Named("crit") = subset.crit,
@@ -193,14 +194,14 @@ SEXP R_testCStep(SEXP R_x, SEXP R_y, SEXP R_lambda, SEXP R_subset,
 	double eps = as<double>(R_eps);
 	bool useGram = as<bool>(R_useGram);
 	// initialize object for subset
-	NumericVector Rcpp_indices = Rcpp_subset["indices"];
+	IntegerVector Rcpp_indices = Rcpp_subset["indices"];
 	const int h = Rcpp_indices.size();
 	NumericVector Rcpp_coefficients = Rcpp_subset["coefficients"];
 	NumericVector Rcpp_residuals = Rcpp_subset["residuals"];
 	NumericVector Rcpp_crit = Rcpp_subset["crit"];
 	Subset subset(n, p, h);
 	for(int i = 0; i < h; i++) {
-		subset.indices(i) = Rcpp_indices[i];
+		subset.indices(i) = Rcpp_indices[i] - 1;
 	}
 	if(useIntercept) {
 		subset.intercept = Rcpp_coefficients[0];
@@ -220,8 +221,9 @@ SEXP R_testCStep(SEXP R_x, SEXP R_y, SEXP R_lambda, SEXP R_subset,
 	if(useIntercept) {
 		Rcpp_coefficients.push_front(subset.intercept);	// prepend intercept
 	}
+  Rcpp_indices = wrap(subset.indices);
 	return List::create(
-			Named("indices") = subset.indices,
+			Named("indices") = Rcpp_indices + 1,
 			Named("coefficients") = Rcpp_coefficients,
 			Named("residuals") = subset.residuals,
 			Named("crit") = subset.crit,
@@ -416,7 +418,12 @@ SEXP R_fastSparseLTS(SEXP R_x, SEXP R_y, SEXP R_lambda, SEXP R_initial,
 	double lambda = as<double>(R_lambda);
 	IntegerMatrix Rcpp_initial(R_initial);	// matrix of initial subsets
 	const int h = Rcpp_initial.nrow(), nsamp = Rcpp_initial.ncol();
-	Map<MatrixXi> initial(Rcpp_initial.begin(), h, nsamp);	// reuse memory
+  MatrixXi initial(h, nsamp);
+	for(int j = 0; j < nsamp; j++) {
+		for(int i = 0; i < h; i++) {
+			initial(i,j) = Rcpp_initial(i,j) - 1;
+		}
+	}
 	bool useIntercept = as<bool>(R_intercept);
 	int ncstep = as<int>(R_ncstep);
 	int nkeep = as<int>(R_nkeep);
@@ -433,11 +440,12 @@ SEXP R_fastSparseLTS(SEXP R_x, SEXP R_y, SEXP R_lambda, SEXP R_initial,
 	if(useIntercept) {
 		Rcpp_coefficients.push_front(best.intercept);	// prepend intercept
 	}
+  IntegerVector Rcpp_indices = wrap(best.indices);
 	return List::create(
-			Named("best") = best.indices,
+			Named("best") = Rcpp_indices + 1,
 			Named("coefficients") = Rcpp_coefficients,
 			Named("residuals") = best.residuals,
-			Named("crit") = best.crit,
+			Named("objective") = best.crit,
 			Named("center") = center,
 			Named("scale") = scale
 			);

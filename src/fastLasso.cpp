@@ -1,6 +1,6 @@
 /*
  * Author: Andreas Alfons
- *         KU Leuven
+ *         Erasmus University Rotterdam
  */
 
 #include "fastLasso.h"
@@ -513,15 +513,22 @@ VectorXd fastLasso(const MatrixXd& x, const VectorXd& y, const double& lambda,
 SEXP R_fastLasso(SEXP R_x, SEXP R_y, SEXP R_lambda, SEXP R_useSubset,
 		SEXP R_subset, SEXP R_intercept, SEXP R_eps, SEXP R_useGram) {
     // data initializations
-	NumericMatrix Rcpp_x(R_x);	// predictor matrix
+	NumericMatrix Rcpp_x(R_x);              // predictor matrix
 	const int n = Rcpp_x.nrow(), p = Rcpp_x.ncol();
-	Map<MatrixXd> x(Rcpp_x.begin(), n, p);	// reuse memory
-	NumericVector Rcpp_y(R_y);	// response
-	Map<VectorXd> y(Rcpp_y.begin(), n);		// reuse memory
+	Map<MatrixXd> x(Rcpp_x.begin(), n, p);  // reuse memory
+	NumericVector Rcpp_y(R_y);              // response
+	Map<VectorXd> y(Rcpp_y.begin(), n);	    // reuse memory
 	double lambda = as<double>(R_lambda);
 	bool useSubset = as<bool>(R_useSubset);
-	IntegerVector Rcpp_subset(R_subset);	// subset to use for computation
-	Map<VectorXi> subset(Rcpp_subset.begin(), Rcpp_subset.size());
+  VectorXi subset;
+  if(useSubset) {
+		IntegerVector Rcpp_subset(R_subset);	// subset to use for computation
+		const int h = Rcpp_subset.size();
+		subset = VectorXi(h);
+		for(int i = 0; i < h; i++) {
+      subset(i) = Rcpp_subset[i] - 1;
+		}
+	}
 	bool useIntercept = as<bool>(R_intercept);
 	double intercept;
 	double eps = as<double>(R_eps);
