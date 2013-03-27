@@ -220,261 +220,296 @@ VectorXd fastLasso(const MatrixXd& x, const VectorXd& y, const double& lambda,
 	// further initializations for iterative steps
 	RowVectorXd corY;
 	corY.noalias() = ys.transpose() * xs;	// current correlations
-	VectorXi active;	// active predictors
-	int k = 0;			// number of active predictors
-	VectorXd previousBeta = VectorXd::Zero(p+s), currentBeta = VectorXd::Zero(p+s);	// previous and current regression coefficients
-	double previousLambda = 0, currentLambda = 0;	// previous and current penalty parameter
-	VectorXi drops;		// indicates variables to be dropped
-	VectorXd signs;		// keep track of sign of correlations for the active variables (double precision is necessary for solve())
-	MatrixXd L;			// Cholesky L of Gram matrix of active variables
-	int rank = 0;		// rank of Cholesky L
-	int maxActive = findMaxActive(n, p, useIntercept);	// maximum number of variables to be sequenced
+  VectorXd beta(p+s);                   // final coefficients
 
-	// modified LARS algorithm for lasso solution
-	while(k < maxActive) {
+    // compute lasso solution
+  if(p == 1) {
 
-		// extract current correlations of inactive variables
-		VectorXd corInactiveY(m);
-		for(int j = 0; j < m; j++) {
-			corInactiveY(j) = corY(inactive(j));
-		}
-		// compute absolute values of correlations and find maximum
-		VectorXd absCorInactiveY = corInactiveY.cwiseAbs();
-		double maxCor = absCorInactiveY.maxCoeff();
-		// update current lambda
-		if(k == 0) {	// no active variables
-			previousLambda = maxCor;
-		} else {
-			previousLambda = currentLambda;
-		}
-		currentLambda = maxCor;
-		if(currentLambda <= rescaledLambda) break;
+    // special case of only one variable (with sufficiently large norm)
+    int j = inactive(0);          
+    // set maximum step size in the direction of that variable
+    double maxStep = corY(j);
+    if(maxStep < 0) maxStep = -maxStep; // absolute value
+    // compute coefficients for least squares solution
+    VectorXd betaLS = xs.col(j).householderQr().solve(ys);
+    // compute lasso coefficients
+    beta.setZero();
+    if(rescaledLambda < maxStep) {
+      // interpolate towards least squares solution
+      beta(j) = (maxStep - rescaledLambda) * betaLS(0) / maxStep;
+    }
 
-		if(drops.size() == 0) {
-			// new active variables
-			VectorXi newActive = findNewActive(absCorInactiveY, maxCor - eps);
-			// do calculations for new active variables
-			for(int j = 0; j < newActive.size(); j++) {
-				// update Cholesky L of Gram matrix of active variables
-				// TODO: put this into void function
-				int newJ = inactive(newActive(j));
-				VectorXd xNewJ;
-				double newX;
-				if(useGram) {
-					newX = Gram(newJ, newJ);
-				} else {
-					xNewJ = xs.col(newJ);
-					newX = xNewJ.squaredNorm();
-				}
-				double normNewX = sqrt(newX);
-				if(k == 0) {	// no active variables, L is empty
-					L.resize(1,1);
-					L(0, 0) = normNewX;
-					rank = 1;
-				} else {
-					VectorXd oldX(k);
-					if(useGram) {
-						for(int j = 0; j < k; j++) {
-							oldX(j) = Gram(active(j), newJ);
-						}
-					} else {
-						for(int j = 0; j < k; j++) {
-							oldX(j) = xNewJ.dot(xs.col(active(j)));
-						}
-					}
-					VectorXd l = L.triangularView<Lower>().solve(oldX);
-					double lkk = newX - l.squaredNorm();
-					// check if L is machine singular
-					if(lkk > eps) {
-						// no singularity: update Cholesky L
-						lkk = sqrt(lkk);
-						rank++;
-						// add new row and column to Cholesky L
-						// this is a little trick: sometimes we need
-						// lower triangular matrix, sometimes upper
-						// hence we define quadratic matrix and use
-						// triangularView() to interpret matrix the
-						// correct way
-						L.conservativeResize(k+1, k+1);
-						for(int j = 0; j < k; j++) {
-							L(k, j) = l(j);
-							L(j, k) = l(j);
-						}
-						L(k,k) = lkk;
-					}
-				}
-				// add new variable to active set or drop it for good
-				// in case of singularity
-				if(rank == k) {
-					// singularity: drop variable for good
-					ignores.append(newJ, s);
-					s++;	// increase number of ignored variables
-					p--;	// decrease number of variables
-					if(p < maxActive) {
-						// adjust maximum number of active variables
-						maxActive = p;
-					}
-				} else {
-					// no singularity: add variable to active set
-					active.append(newJ, k);
-					// keep track of sign of correlation for new active variable
-					signs.append(sign(corY(newJ)), k);
-					k++;	// increase number of active variables
-				}
-			}
-			// remove new active or ignored variables from inactive variables
-			// and corresponding vector of current correlations
-			inactive.remove(newActive);
-			corInactiveY.remove(newActive);
-			m = inactive.size();	// update number of inactive variables
-		}
-		// prepare for computation of step size
-		// here double precision of signs is necessary
-		VectorXd b = L.triangularView<Lower>().solve(signs);
-		VectorXd G = L.triangularView<Upper>().solve(b);
-		// correlations of active variables with equiangular vector
-		double corActiveU = 1/sqrt(G.dot(signs));
-		// coefficients of active variables in linear combination forming the
-		// equiangular vector
-		VectorXd w = G * corActiveU;	// note that this has the right signs
-		// equiangular vector
-		VectorXd u;
-		if(!useGram) {
-			// we only need equiangular vector if we don't use the precomputed
-			// Gram matrix, otherwise we can compute the correlations directly
-			// from the Gram matrix
-			u = VectorXd::Zero(n);
-			for(int i = 0; i < n; i++) {
-				for(int j = 0; j < k; j++) {
-					u(i) += xs(i, active(j)) * w(j);
-				}
-			}
-		}
-		// compute step size in equiangular direction
-		double step;
-		if(k < maxActive) {
-			// correlations of inactive variables with equiangular vector
-			VectorXd corInactiveU(m);
-			if(useGram) {
-				for(int j = 0; j < m; j++) {
-					corInactiveU(j) = 0;
-					for(int i = 0; i < k; i++) {
-						corInactiveU(j) += w(i) * Gram(active(i), inactive(j));
-					}
-				}
-			} else {
-				for(int j = 0; j < m; j++) {
-					corInactiveU(j) = u.dot(xs.col(inactive(j)));
-				}
-			}
-			// compute step size in the direction of the equiangular vector
-			step = findStep(maxCor, corInactiveY, corActiveU, corInactiveU, eps);
-		} else {
-			// last step: take maximum possible step
-			step = maxCor/corActiveU;
-		}
-		// adjust step size if any sign changes and drop corresponding variables
-		drops = findDrops(currentBeta, active, w, eps, step);
-		// update current regression coefficients
-		previousBeta = currentBeta;
-		for(int j = 0; j < k; j++) {
-			currentBeta(active(j)) += step * w(j);
-		}
-		// update current correlations
-		if(useGram) {
-			// we also need to do this for active variables, since they may be
-			// dropped at a later stage
-			// TODO: computing a vector step * w in advance may save some computation time
-			for(int j = 0; j < Gram.cols(); j++) {
-				for(int i = 0; i < k; i++) {
-					corY(j) -= step * w(i) * Gram(active(i), j);
-				}
-			}
-		} else {
-			ys -= step * u;	// take step in equiangular direction
-			corY.noalias() = ys.transpose() * xs;	// update correlations
-		}
-		// drop variables if necessary
-		if(drops.size() > 0) {
-			// downdate Cholesky L
-			// TODO: put this into void function
-			for(int j = drops.size()-1; j >= 0; j--) {
-				// variables need to be dropped in descending order
-				int drop = drops(j);	// index with respect to active set
-				// modify upper triangular part as in R package 'lars'
-				// simply deleting columns is not enough, other computations
-				// necessary but complicated due to Fortran code
-				L.removeCol(drop);
-				VectorXd z = VectorXd::Constant(k, 1, 1);
-				k--;	// decrease number of active variables
-				for(int i = drop; i < k; i++) {
-					double a = L(i,i), b = L(i+1,i);
-					if(b != 0.0) {
-						// compute the rotation
-						double tau, s, c;
-						if(abs(b) > abs(a)) {
-							tau = -a/b;
-							s = 1.0/sqrt(1.0+tau*tau);
-							c = s * tau;
-						} else {
-							tau = -b/a;
-							c = 1.0/sqrt(1.0+tau*tau);
-							s = c * tau;
-						}
-						// update 'L' and 'z';
-						L(i,i) = c*a - s*b;
-						for(int j = i+1; j < k; j++) {
-							a = L(i,j);
-							b = L(i+1,j);
-							L(i,j) = c*a - s*b;
-							L(i+1,j) = s*a + c*b;
-						}
-						a = z(i);
-						b = z(i+1);
-						z(i) = c*a - s*b;
-						z(i+1) = s*a + c*b;
-					}
-				}
-				// TODO: removing all rows together may save some computation time
-				L.conservativeResize(k, NoChange);
-				rank--;
-			}
-			// mirror lower triangular part
-			for(int j = 0; j < k; j++) {
-				for(int i = j+1; i < k; i++) {
-					L(i,j) = L(j,i);
-				}
-			}
-			// add dropped variables to inactive set and make sure
-			// coefficients are 0
-			inactive.conservativeResize(m + drops.size());
-			for(int j = 0; j < drops.size(); j++) {
-				int newInactive = active(drops(j));
-				inactive(m + j) = newInactive;
-				currentBeta(newInactive) = 0;	// make sure coefficient is 0
-			}
-			m = inactive.size();	// update number of inactive variables
-			// drop variables from active set and sign vector
-			// number of active variables is already updated above
-			active.remove(drops);
-			signs.remove(drops);
-		}
-	}
+  } else {
 
-	// interpolate coefficients for given lambda
-	p = currentBeta.size();	// reset number of variables to include ignored ones
-	VectorXd beta(p);		// final coefficient vector
-	if(rescaledLambda <= currentLambda) {
-		beta = currentBeta;
-	} else if(rescaledLambda >= previousLambda) {
-		// strict inequality only possible if lambda larger than largest lambda
-		beta = previousBeta;	// includes case of equality
-	} else {
-		// penalty parameter strictly within two steps: interpolate coefficients
-		beta = ((rescaledLambda - currentLambda) * previousBeta +
-				(previousLambda - rescaledLambda) * currentBeta) /
-				(previousLambda - currentLambda);
-	}
+    // further initializations for iterative steps
+    VectorXi active;  // active predictors
+  	int k = 0;        // number of active predictors
+    // previous and current regression coefficients
+  	VectorXd previousBeta = VectorXd::Zero(p+s), currentBeta = VectorXd::Zero(p+s);
+  	// previous and current penalty parameter
+    double previousLambda = 0, currentLambda = 0;
+  	// indicates variables to be dropped
+    VectorXi drops;
+  	// keep track of sign of correlations for the active variables 
+    // (double precision is necessary for solve())
+    VectorXd signs;
+  	// Cholesky L of Gram matrix of active variables
+    MatrixXd L;
+  	int rank = 0;		// rank of Cholesky L
+    // maximum number of variables to be sequenced
+  	int maxActive = findMaxActive(n, p, useIntercept);
+
+  	// modified LARS algorithm for lasso solution
+  	while(k < maxActive) {
+
+  		// extract current correlations of inactive variables
+  		VectorXd corInactiveY(m);
+  		for(int j = 0; j < m; j++) {
+  			corInactiveY(j) = corY(inactive(j));
+  		}
+  		// compute absolute values of correlations and find maximum
+  		VectorXd absCorInactiveY = corInactiveY.cwiseAbs();
+  		double maxCor = absCorInactiveY.maxCoeff();
+  		// update current lambda
+  		if(k == 0) {	// no active variables
+  			previousLambda = maxCor;
+  		} else {
+  			previousLambda = currentLambda;
+  		}
+  		currentLambda = maxCor;
+  		if(currentLambda <= rescaledLambda) break;
+
+  		if(drops.size() == 0) {
+  			// new active variables
+  			VectorXi newActive = findNewActive(absCorInactiveY, maxCor - eps);
+  			// do calculations for new active variables
+  			for(int j = 0; j < newActive.size(); j++) {
+  				// update Cholesky L of Gram matrix of active variables
+  				// TODO: put this into void function
+  				int newJ = inactive(newActive(j));
+  				VectorXd xNewJ;
+  				double newX;
+  				if(useGram) {
+  					newX = Gram(newJ, newJ);
+  				} else {
+  					xNewJ = xs.col(newJ);
+  					newX = xNewJ.squaredNorm();
+  				}
+  				double normNewX = sqrt(newX);
+  				if(k == 0) {	// no active variables, L is empty
+  					L.resize(1,1);
+  					L(0, 0) = normNewX;
+  					rank = 1;
+  				} else {
+  					VectorXd oldX(k);
+  					if(useGram) {
+  						for(int j = 0; j < k; j++) {
+  							oldX(j) = Gram(active(j), newJ);
+  						}
+  					} else {
+  						for(int j = 0; j < k; j++) {
+  							oldX(j) = xNewJ.dot(xs.col(active(j)));
+  						}
+  					}
+  					VectorXd l = L.triangularView<Lower>().solve(oldX);
+  					double lkk = newX - l.squaredNorm();
+  					// check if L is machine singular
+  					if(lkk > eps) {
+  						// no singularity: update Cholesky L
+  						lkk = sqrt(lkk);
+  						rank++;
+  						// add new row and column to Cholesky L
+  						// this is a little trick: sometimes we need
+  						// lower triangular matrix, sometimes upper
+  						// hence we define quadratic matrix and use
+  						// triangularView() to interpret matrix the
+  						// correct way
+  						L.conservativeResize(k+1, k+1);
+  						for(int j = 0; j < k; j++) {
+  							L(k, j) = l(j);
+  							L(j, k) = l(j);
+  						}
+  						L(k,k) = lkk;
+  					}
+  				}
+  				// add new variable to active set or drop it for good
+  				// in case of singularity
+  				if(rank == k) {
+  					// singularity: drop variable for good
+  					ignores.append(newJ, s);
+  					s++;	// increase number of ignored variables
+  					p--;	// decrease number of variables
+  					if(p < maxActive) {
+  						// adjust maximum number of active variables
+  						maxActive = p;
+  					}
+  				} else {
+  					// no singularity: add variable to active set
+  					active.append(newJ, k);
+  					// keep track of sign of correlation for new active variable
+  					signs.append(sign(corY(newJ)), k);
+  					k++;	// increase number of active variables
+  				}
+  			}
+  			// remove new active or ignored variables from inactive variables
+  			// and corresponding vector of current correlations
+  			inactive.remove(newActive);
+  			corInactiveY.remove(newActive);
+  			m = inactive.size();	// update number of inactive variables
+  		}
+  		// prepare for computation of step size
+  		// here double precision of signs is necessary
+  		VectorXd b = L.triangularView<Lower>().solve(signs);
+  		VectorXd G = L.triangularView<Upper>().solve(b);
+  		// correlations of active variables with equiangular vector
+  		double corActiveU = 1/sqrt(G.dot(signs));
+  		// coefficients of active variables in linear combination forming the
+  		// equiangular vector
+  		VectorXd w = G * corActiveU;	// note that this has the right signs
+  		// equiangular vector
+  		VectorXd u;
+  		if(!useGram) {
+  			// we only need equiangular vector if we don't use the precomputed
+  			// Gram matrix, otherwise we can compute the correlations directly
+  			// from the Gram matrix
+  			u = VectorXd::Zero(n);
+  			for(int i = 0; i < n; i++) {
+  				for(int j = 0; j < k; j++) {
+  					u(i) += xs(i, active(j)) * w(j);
+  				}
+  			}
+  		}
+  		// compute step size in equiangular direction
+  		double step;
+  		if(k < maxActive) {
+  			// correlations of inactive variables with equiangular vector
+  			VectorXd corInactiveU(m);
+  			if(useGram) {
+  				for(int j = 0; j < m; j++) {
+  					corInactiveU(j) = 0;
+  					for(int i = 0; i < k; i++) {
+  						corInactiveU(j) += w(i) * Gram(active(i), inactive(j));
+  					}
+  				}
+  			} else {
+  				for(int j = 0; j < m; j++) {
+  					corInactiveU(j) = u.dot(xs.col(inactive(j)));
+  				}
+  			}
+  			// compute step size in the direction of the equiangular vector
+  			step = findStep(maxCor, corInactiveY, corActiveU, corInactiveU, eps);
+  		} else {
+  			// last step: take maximum possible step
+  			step = maxCor/corActiveU;
+  		}
+  		// adjust step size if any sign changes and drop corresponding variables
+  		drops = findDrops(currentBeta, active, w, eps, step);
+  		// update current regression coefficients
+  		previousBeta = currentBeta;
+  		for(int j = 0; j < k; j++) {
+  			currentBeta(active(j)) += step * w(j);
+  		}
+  		// update current correlations
+  		if(useGram) {
+  			// we also need to do this for active variables, since they may be
+  			// dropped at a later stage
+  			// TODO: computing a vector step * w in advance may save some computation time
+  			for(int j = 0; j < Gram.cols(); j++) {
+  				for(int i = 0; i < k; i++) {
+  					corY(j) -= step * w(i) * Gram(active(i), j);
+  				}
+  			}
+  		} else {
+  			ys -= step * u;	// take step in equiangular direction
+  			corY.noalias() = ys.transpose() * xs;	// update correlations
+  		}
+  		// drop variables if necessary
+  		if(drops.size() > 0) {
+  			// downdate Cholesky L
+  			// TODO: put this into void function
+  			for(int j = drops.size()-1; j >= 0; j--) {
+  				// variables need to be dropped in descending order
+  				int drop = drops(j);	// index with respect to active set
+  				// modify upper triangular part as in R package 'lars'
+  				// simply deleting columns is not enough, other computations
+  				// necessary but complicated due to Fortran code
+  				L.removeCol(drop);
+  				VectorXd z = VectorXd::Constant(k, 1, 1);
+  				k--;	// decrease number of active variables
+  				for(int i = drop; i < k; i++) {
+  					double a = L(i,i), b = L(i+1,i);
+  					if(b != 0.0) {
+  						// compute the rotation
+  						double tau, s, c;
+  						if(abs(b) > abs(a)) {
+  							tau = -a/b;
+  							s = 1.0/sqrt(1.0+tau*tau);
+  							c = s * tau;
+  						} else {
+  							tau = -b/a;
+  							c = 1.0/sqrt(1.0+tau*tau);
+  							s = c * tau;
+  						}
+  						// update 'L' and 'z';
+  						L(i,i) = c*a - s*b;
+  						for(int j = i+1; j < k; j++) {
+  							a = L(i,j);
+  							b = L(i+1,j);
+  							L(i,j) = c*a - s*b;
+  							L(i+1,j) = s*a + c*b;
+  						}
+  						a = z(i);
+  						b = z(i+1);
+  						z(i) = c*a - s*b;
+  						z(i+1) = s*a + c*b;
+  					}
+  				}
+  				// TODO: removing all rows together may save some computation time
+  				L.conservativeResize(k, NoChange);
+  				rank--;
+  			}
+  			// mirror lower triangular part
+  			for(int j = 0; j < k; j++) {
+  				for(int i = j+1; i < k; i++) {
+  					L(i,j) = L(j,i);
+  				}
+  			}
+  			// add dropped variables to inactive set and make sure
+  			// coefficients are 0
+  			inactive.conservativeResize(m + drops.size());
+  			for(int j = 0; j < drops.size(); j++) {
+  				int newInactive = active(drops(j));
+  				inactive(m + j) = newInactive;
+  				currentBeta(newInactive) = 0;	// make sure coefficient is 0
+  			}
+  			m = inactive.size();	// update number of inactive variables
+  			// drop variables from active set and sign vector
+  			// number of active variables is already updated above
+  			active.remove(drops);
+  			signs.remove(drops);
+  		}
+  	}
+
+  	// interpolate coefficients for given lambda
+    if(k == 0) {
+      // lambda larger than largest lambda from steps of LARS algorithm
+  		beta.setZero();
+    } else {
+    	// penalty parameter within two steps
+      if(k == maxActive) {
+          // current coefficients are the least squares solution (in the 
+          // high-dimensional case, as far along the solution path as possible)
+          // current and previous values of the penalty parameter need to be 
+          // reset for interpolation
+          previousLambda = currentLambda;
+          currentLambda = 0;
+      }
+      // interpolate coefficients
+    	beta = ((rescaledLambda - currentLambda) * previousBeta +
+  				(previousLambda - rescaledLambda) * currentBeta) /
+  				(previousLambda - currentLambda);
+    }
+  }
 
 	// transform coefficients back
 	for(int j = 0; j < p; j++) {

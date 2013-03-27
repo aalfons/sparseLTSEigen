@@ -1,3 +1,8 @@
+Changes in sparseLTSEigen version 0.1.3
+
+    + Bugfix in sparseLTS() in case of only one predictor variable.
+
+
 Changes in sparseLTSEigen version 0.1.2
 
     + Redesign of how C++ back end is called from package 'robustHD'.
