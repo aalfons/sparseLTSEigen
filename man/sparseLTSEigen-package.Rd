@@ -17,7 +17,7 @@ Use RcppEigen to fit least trimmed squares
 Package: \tab sparseLTSEigen\cr
 Type: \tab Package\cr
 Version: \tab 0.1.3\cr
-Date: \tab 2013-03-27\cr
+Date: \tab 2013-04-16\cr
 Depends: \tab Rcpp (>= 0.9.10), robustHD (>= 0.3.0)\cr
 Imports: \tab RcppEigen (>= 0.2.0)\cr
 Suggests: \tab mvtnorm\cr
