@@ -127,24 +127,44 @@ VectorXi findDrops(const VectorXd& beta, const VectorXi& active,
 	return drops.head(d);
 }
 
+// compute objective function on a subset of the data
+// (L1 penalized trimmed sum of squared residuals)
+double objective(const VectorXd& beta, const VectorXd& residuals, 
+    const VectorXi& subset, const double& lambda) {
+  // compute sum of squared residuals for subset
+  const int h = subset.size();
+	double crit = 0;
+	for(int i = 0; i < h; i++) {
+		crit += pow(residuals(subset(i)), 2);
+	}
+  // add L1 penalty on coefficients
+	crit += h * lambda * beta.lpNorm<1>();
+  // return value of objective function
+  return crit;
+}
+
 
 // barebones version of the lasso for fixed lambda
 // Eigen library is used for linear algebra
-// ATTENTION: intercept is returned through corresponding parameter
 // x .............. predictor matrix
 // y .............. response
 // lambda ......... penalty parameter
 // useSubset ...... logical indicating whether lasso should be computed on a
 //                  subset
 // subset ......... indices of subset on which lasso should be computed
+// normalize ...... logical indicating whether predictors should be normalized
 // useIntercept ... logical indicating whether intercept should be included
 // eps ............ small numerical value (effective zero)
 // useGram ........ logical indicating whether Gram matrix should be computed
 //                  in advance
-// intercept ...... intercept is returned through this parameter
-VectorXd fastLasso(const MatrixXd& x, const VectorXd& y, const double& lambda,
-		const bool& useSubset, const VectorXi& subset, const bool& useIntercept,
-		const double& eps, const bool& useGram, double& intercept) {
+// useCrit ........ logical indicating whether to compute objective function
+void fastLasso(const MatrixXd& x, const VectorXd& y, const double& lambda,
+		const bool& useSubset, const VectorXi& subset, const bool& normalize, 
+    const bool& useIntercept, const double& eps, const bool& useGram, 
+    const bool& useCrit,
+    // intercept, coefficients, residuals and objective function are returned 
+    // through the following parameters
+    double& intercept, VectorXd& beta, VectorXd& residuals, double& crit) {
 
 	// data initializations
 	int n, p = x.cols();
@@ -189,26 +209,32 @@ VectorXd fastLasso(const MatrixXd& x, const VectorXd& y, const double& lambda,
 	int s = 0;				// number of ignored variables
 
 	// normalize predictors and store norms
-	RowVectorXd normX = xs.colwise().norm();	// columnwise norms
-	double epsNorm = eps * sqrt(n);	// R package 'lars' uses n, not n-1
-	for(int j = 0; j < p; j++) {
-		if(normX(j) < epsNorm) {
-			// variance is too small: ignore variable
-			ignores.append(j, s);
-			s++;
-			// set norm to tolerance to avoid numerical problems
-			normX(j) = epsNorm;
-		} else {
-			inactive(m) = j;		// add variable to inactive set
-			m++;					// increase number of inactive variables
-		}
-		xs.col(j) /= normX(j);		// sweep out norm
-	}
-	// resize inactive set and update number of variables if necessary
-	if(m < p) {
-		inactive.conservativeResize(m);
-		p = m;
-	}
+	RowVectorXd normX;
+  if(normalize) {
+    normX = xs.colwise().norm();	// columnwise norms
+	  double epsNorm = eps * sqrt(n);	// R package 'lars' uses n, not n-1
+	  for(int j = 0; j < p; j++) {
+		  if(normX(j) < epsNorm) {
+			  // variance is too small: ignore variable
+			  ignores.append(j, s);
+			  s++;
+			  // set norm to tolerance to avoid numerical problems
+			  normX(j) = epsNorm;
+		  } else {
+			  inactive(m) = j;		// add variable to inactive set
+			  m++;					// increase number of inactive variables
+		  }
+		  xs.col(j) /= normX(j);		// sweep out norm
+	  }
+	  // resize inactive set and update number of variables if necessary
+	  if(m < p) {
+		  inactive.conservativeResize(m);
+		  p = m;
+	  }
+  } else {
+    for(int j = 0; j < p; j++) inactive(j) = j;  // add variable to inactive set
+    m = p;
+  }
 
 	// compute Gram matrix if requested (saves time if number of variables is
 	// not too large)
@@ -218,11 +244,11 @@ VectorXd fastLasso(const MatrixXd& x, const VectorXd& y, const double& lambda,
 	}
 
 	// further initializations for iterative steps
-	RowVectorXd corY;
-	corY.noalias() = ys.transpose() * xs;	// current correlations
-  VectorXd beta(p+s);                   // final coefficients
+  RowVectorXd corY;
+  corY.noalias() = ys.transpose() * xs; // current correlations
+  beta.resize(p+s);                     // final coefficients
 
-    // compute lasso solution
+  // compute lasso solution
   if(p == 1) {
 
     // special case of only one variable (with sufficiently large norm)
@@ -512,41 +538,31 @@ VectorXd fastLasso(const MatrixXd& x, const VectorXd& y, const double& lambda,
   }
 
 	// transform coefficients back
-	for(int j = 0; j < p; j++) {
-		beta(j) /= normX(j);
+  VectorXd normedBeta;
+	if(normalize) {
+    if(useCrit) normedBeta = beta;
+    for(int j = 0; j < p; j++) beta(j) /= normX(j);
 	}
-	if(useIntercept) {
-		intercept = meanY - beta.dot(meanX);
-	}
+	if(useIntercept) intercept = meanY - beta.dot(meanX);
 
-	return beta;
-}
+  // compute residuals for all observations
+  n = x.rows();
+  residuals = y - x * beta;
+  if(useIntercept) {
+    for(int i = 0; i < n; i++) residuals(i) -= intercept;
+  }
 
-// wrapper function used for R interface, which returns fitted values and
-// residuals through corresponding parameters
-VectorXd fastLasso(const MatrixXd& x, const VectorXd& y, const double& lambda,
-		const bool& useSubset, const VectorXi& subset, const bool& useIntercept,
-		const double& eps, const bool& useGram, double& intercept,
-		VectorXd& fitted, VectorXd& residuals) {
-	// compute coefficients
-	VectorXd coefficients = fastLasso(x, y, lambda, useSubset, subset,
-			useIntercept, eps, useGram, intercept);
-	// compute fitted values
-	fitted.noalias() = x * coefficients;
-	if(useIntercept) {
-		for(int i = 0; i < fitted.size(); i++) {
-			fitted(i) += intercept;
-		}
-	}
-	// compute residuals
-	residuals = y - fitted;
-	// return coefficients
-	return coefficients;
+  // compute value of objective function on the subset
+  if(useCrit && useSubset) {
+    if(normalize) crit = objective(normedBeta, residuals, subset, lambda);
+    else crit = objective(beta, residuals, subset, lambda);
+  }
 }
 
 // R interface to fastLasso()
 SEXP R_fastLasso(SEXP R_x, SEXP R_y, SEXP R_lambda, SEXP R_useSubset,
-		SEXP R_subset, SEXP R_intercept, SEXP R_eps, SEXP R_useGram) {
+		SEXP R_subset, SEXP R_normalize, SEXP R_intercept, SEXP R_eps, 
+    SEXP R_useGram) {
     // data initializations
 	NumericMatrix Rcpp_x(R_x);              // predictor matrix
 	const int n = Rcpp_x.nrow(), p = Rcpp_x.ncol();
@@ -564,21 +580,22 @@ SEXP R_fastLasso(SEXP R_x, SEXP R_y, SEXP R_lambda, SEXP R_useSubset,
       subset(i) = Rcpp_subset[i] - 1;
 		}
 	}
+  bool normalize = as<bool>(R_normalize);
 	bool useIntercept = as<bool>(R_intercept);
-	double intercept;
 	double eps = as<double>(R_eps);
 	bool useGram = as<bool>(R_useGram);
 	// call native C++ function and return results as list
-	VectorXd fitted, residuals;
-	VectorXd coefficients = fastLasso(x, y, lambda, useSubset, subset,
-			useIntercept, eps, useGram, intercept, fitted, residuals);
+  double intercept, crit;
+  VectorXd coefficients, residuals;
+  fastLasso(x, y, lambda, useSubset, subset, normalize, useIntercept, eps, 
+      useGram, false, intercept, coefficients, residuals, crit);
 	NumericVector R_coefficients = wrap(coefficients);
 	if(useIntercept) {
 		R_coefficients.push_front(intercept);	// prepend intercept
 	}
 	return List::create(
 			Named("coefficients") = R_coefficients,
-			Named("fitted.values") = fitted,
+			Named("fitted.values") = y - residuals,
 			Named("residuals") = residuals
 			);
 }
