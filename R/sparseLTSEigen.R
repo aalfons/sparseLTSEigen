@@ -8,6 +8,7 @@
 #' @export
 #' @import Rcpp 
 #' @import RcppEigen
+#' @import robustHD
 #' @useDynLib sparseLTSEigen
 .CallSparseLTSEigen <- function(..., PACKAGE) {
   .Call(..., PACKAGE="sparseLTSEigen")
