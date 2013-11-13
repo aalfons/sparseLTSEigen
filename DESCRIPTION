@@ -3,11 +3,11 @@ Type: Package
 Title: RcppEigen back end for sparse least trimmed squares
     regression
 Version: 0.2.0
-Date: 2013-11-01
+Date: 2013-11-13
 Depends:
-    Rcpp (>= 0.9.10),
     robustHD (>= 0.4.0)
 Imports:
+    Rcpp (>= 0.9.10),
     RcppEigen (>= 0.2.0)
 Suggests:
     mvtnorm
