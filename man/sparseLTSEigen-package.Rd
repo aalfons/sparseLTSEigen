@@ -16,12 +16,12 @@ Use RcppEigen to fit least trimmed squares
 \tabular{ll}{
 Package: \tab sparseLTSEigen\cr
 Type: \tab Package\cr
-Version: \tab 0.2.0\cr
-Date: \tab 2013-11-13\cr
-Depends: \tab robustHD (>= 0.4.0)\cr
-Imports: \tab Rcpp (>= 0.9.10), RcppEigen (>= 0.2.0)\cr
+Version: \tab 0.2.1\cr
+Date: \tab 2014-01-03\cr
+Depends: \tab R (>= 3.0.2), robustHD (>= 0.4.0)\cr
+Imports: \tab Rcpp, RcppEigen\cr
 Suggests: \tab mvtnorm\cr
-LinkingTo: \tab Rcpp, RcppEigen\cr
+LinkingTo: \tab Rcpp (>= 0.9.10), RcppEigen (>= 0.2.0)\cr
 License: \tab GPL (>= 2)\cr
 LazyLoad: \tab yes\cr
 }

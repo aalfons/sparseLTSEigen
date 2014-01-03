@@ -1,3 +1,8 @@
+Changes in sparseLTSEigen version 0.2.1
+
+    + Updated package dependencies.
+
+
 Changes in sparseLTSEigen version 0.2.0
 
     + Adapted C++ code to new version of package 'robustHD'.
