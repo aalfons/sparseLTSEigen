@@ -4,7 +4,6 @@
 # ------------------------------------
 
 ## function to call RcppEigen back end
-#' @rdname sparseLTSEigen-package
 #' @export
 #' @import Rcpp 
 #' @import RcppEigen
