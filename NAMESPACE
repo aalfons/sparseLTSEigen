@@ -1,5 +1,3 @@
 export(.CallSparseLTSEigen)
-import(Rcpp)
-import(RcppEigen)
 import(robustHD)
 useDynLib(sparseLTSEigen)
